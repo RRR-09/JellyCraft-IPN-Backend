@@ -13,9 +13,9 @@ from werkzeug.datastructures import ImmutableOrderedMultiDict  # pip install fla
 app = Flask(__name__)
 
 
-@app.route('/')
+@app.route("/")
 def index():
-    return 'Index for the JellyCraft PayPal IPN backend. If you are seeing this, it is active.'
+    return "Index for the JellyCraft PayPal IPN backend. If you are seeing this, it is active."
 
 
 def payment_hook(user_name, item_code, total_friendly, verified):
@@ -36,75 +36,64 @@ def discord_hook(message):
         result.raise_for_status()
     except requests.exceptions.HTTPError as err:
         print(err)
-    else:
-        print(f"[Hook Run] {message}")
 
 
-@app.route('/ipn/', methods=['POST'])
+@app.route("/ipn/", methods=["POST"])
 def ipn():
-    values = "ERROR"
     try:
-        arg = ''
-        request.parameter_storage_class = ImmutableOrderedMultiDict
-        values = request.form
-        for x, y in values.items():
-            arg += "&{x}={y}".format(x=x, y=y)
-            print(x, y)
-
-        # validate_url = 'https://ipnpb.sandbox.paypal.com' \
-        validate_url = 'https://ipnpb.paypal.com' \
-                       '/cgi-bin/webscr?cmd=_notify-validate{arg}' \
-            .format(arg=arg)
-        r = requests.get(validate_url)
-        if r.text != 'VERIFIED':
+        validation_args = ""
+        request.parameter_storage_class = ImmutableOrderedMultiDict  # todo: Do we need this?
+        for key, value in request.form.items():
+            validation_args += f"&{key}={value}"
+        paypal_api = "https://ipnpb.paypal.com"  # For testing, use https://ipnpb.sandbox.paypal.com
+        validation_url = f"{paypal_api}/cgi-bin/webscr?cmd=_notify-validate{validation_args}"
+        validation_request = requests.get(validation_url)
+        if validation_request.text != "VERIFIED":
             for i in range(3):  # Retry 3 times with 5s timeout
                 time.sleep(5)
-                r = requests.get(validate_url)
-                if r.text == 'VERIFIED':
+                validation_request = requests.get(validation_url)
+                if validation_request.text == "VERIFIED":
                     break
-        if r.text == 'VERIFIED':
-            print("VERIFIED!")
+        if validation_request.text == "VERIFIED":
             try:
-                user_name = request.form.get('option_selection1')
-                item_code = request.form.get('item_number')
+                user_name = request.form.get("option_selection1")
+                item_code = request.form.get("item_number")
 
-                payment_gross = request.form.get('mc_gross')
+                # Documentation is inconsistent; it seems gross and fee could be interchangeable. Keeping both.
+                payment_gross = request.form.get("mc_gross")
                 if payment_gross is None:
                     payment_gross = 0
-
-                payment_fee = request.form.get('mc_fee')
+                payment_fee = request.form.get("mc_fee")
                 if payment_fee is None:
                     payment_fee = 0
                 total = max(payment_gross, payment_fee)
-                currency = request.form.get('mc_currency')
+
+                currency = request.form.get("mc_currency")
                 if currency is None:
                     currency = "USD"
                 total_friendly = f"${total} {currency}"
                 payment_hook(user_name, item_code, total_friendly, True)
-                print(user_name, item_code, total_friendly)
             except Exception:
                 print(format_exc())
             gc.collect()
-            return r.text
+            return validation_request.text
         else:
-            print("NOT VERIFIED!")
             raise
 
     except Exception as e:
         try:
-            user_name = request.form.get('option_selection1')
-            item_code = request.form.get('item_number')
-            total = request.form.get('mc_fee')
+            user_name = request.form.get("option_selection1")
+            item_code = request.form.get("item_number")
+            total = request.form.get("mc_fee")
             if total is None:
                 total = 0
-            currency = request.form.get('mc_currency')
+            currency = request.form.get("mc_currency")
             if currency is None:
                 currency = "USD"
             total_friendly = f"${total} {currency}"
             payment_hook(user_name, item_code, total_friendly, False)
-            print(user_name, item_code, total_friendly)
         except Exception:
             print(format_exc())
-            print(values)
-            discord_hook(values)
+            print(request.form)
+            discord_hook(request.form)
         return str(e)
