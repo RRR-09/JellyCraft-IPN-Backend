@@ -48,6 +48,10 @@ def ipn():
             arg = f"&{key}={value}"
             print(arg)
             validation_args += arg
+        try:
+            print(str(request.form))
+        except:
+            print(format_exc())
         validation_url = f"{os.getenv('PAYPAL_ENVIRONMENT')}/cgi-bin/webscr?cmd=_notify-validate{validation_args}" # For testing, use https://ipnpb.sandbox.paypal.com
         validation_request = requests.get(validation_url)
         if validation_request.text != "VERIFIED":
