@@ -40,13 +40,15 @@ def discord_hook(message):
 
 @app.route("/ipn/", methods=["POST"])
 def ipn():
+    print("\n\n\n\n\n\n\n")
     try:
         validation_args = ""
         request.parameter_storage_class = ImmutableOrderedMultiDict  # todo: Do we need this?
         for key, value in request.form.items():
-            validation_args += f"&{key}={value}"
-        paypal_api = "https://ipnpb.paypal.com"  # For testing, use https://ipnpb.sandbox.paypal.com
-        validation_url = f"{paypal_api}/cgi-bin/webscr?cmd=_notify-validate{validation_args}"
+            arg = f"&{key}={value}"
+            print(arg)
+            validation_args += arg
+        validation_url = f"{os.getenv('PAYPAL_ENVIRONMENT')}/cgi-bin/webscr?cmd=_notify-validate{validation_args}" # For testing, use https://ipnpb.sandbox.paypal.com
         validation_request = requests.get(validation_url)
         if validation_request.text != "VERIFIED":
             for i in range(3):  # Retry 3 times with 5s timeout
